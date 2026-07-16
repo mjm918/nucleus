@@ -83,14 +83,17 @@ namespace nucleus {
         const u32 groups = cols / kGroup;
         f32 acc = 0.f;
 #if defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
+        float32x4_t accv = vdupq_n_f32(0.f);
         for (u32 g = 0; g < groups; ++g) {
             const i8 *w = wq + g * kGroup;
             const i8 *a = xq + g * kGroup;
             int32x4_t sum = vdupq_n_s32(0);
             sum = vdotq_s32(sum, vld1q_s8(w), vld1q_s8(a));
             sum = vdotq_s32(sum, vld1q_s8(w + 16), vld1q_s8(a + 16));
-            acc += (f32) vaddvq_s32(sum) * f16_to_f32(scales[g]) * xs[g];
+            const f32 scale = f16_to_f32(scales[g]) * xs[g];
+            accv = vfmaq_n_f32(accv, vcvtq_f32_s32(sum), scale);
         }
+        acc = vaddvq_f32(accv);
 #elif defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)
         __m256 accv = _mm256_setzero_ps();
         for (u32 g = 0; g < groups; ++g) {
@@ -121,6 +124,7 @@ namespace nucleus {
 #if defined(__ARM_NEON) && defined(__ARM_FEATURE_DOTPROD)
         const int8x16_t off = vdupq_n_s8(8);
         const uint8x16_t mask = vdupq_n_u8(0x0F);
+        float32x4_t accv = vdupq_n_f32(0.f);
         for (u32 g = 0; g < groups; ++g) {
             uint8x16_t b = vld1q_u8(packed + g * (kGroup / 2));
             int8x16_t lo = vsubq_s8(vreinterpretq_s8_u8(vandq_u8(b, mask)), off);
@@ -129,8 +133,10 @@ namespace nucleus {
             int32x4_t sum = vdupq_n_s32(0);
             sum = vdotq_s32(sum, lo, vld1q_s8(a));
             sum = vdotq_s32(sum, hi, vld1q_s8(a + 16));
-            acc += (f32) vaddvq_s32(sum) * f16_to_f32(scales[g]) * xs[g];
+            const f32 scale = f16_to_f32(scales[g]) * xs[g];
+            accv = vfmaq_n_f32(accv, vcvtq_f32_s32(sum), scale);
         }
+        acc = vaddvq_f32(accv);
 #elif defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)
         const __m128i mask = _mm_set1_epi8(0x0F);
         const __m256i off = _mm256_set1_epi8(8);

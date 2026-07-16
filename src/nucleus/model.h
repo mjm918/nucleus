@@ -72,6 +72,8 @@ namespace nucleus {
     private:
         void attention(const LayerWeights &lw, u32 layer, u32 pos, const f32 *x, f32 *out);
         void moe_ffn(const LayerWeights &lw, u32 layer, const f32 *residual, f32 *out);
+        void prepare_mv(const f32 *x, u32 n);
+        void mv_prepared(const QView &w, const f32 *x, f32 *out);
         void mv(const QView &w, const f32 *x, f32 *out);
 
         NucFile _file;

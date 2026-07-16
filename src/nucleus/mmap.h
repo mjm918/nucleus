@@ -17,6 +17,7 @@
 #ifndef NUCLEUS_MMAP_H
 #define NUCLEUS_MMAP_H
 
+#include <climits>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -58,7 +59,15 @@ namespace nucleus {
         void prefetch(size_t offset, size_t len) const {
             if (!_data || offset + len > _size)
                 return;
+#if defined(__APPLE__) && defined(F_RDADVISE)
+            radvisory advice{
+                .ra_offset = static_cast<off_t>(offset),
+                .ra_count = static_cast<int>(std::min<size_t>(len, INT_MAX)),
+            };
+            (void) fcntl(_fd, F_RDADVISE, &advice);
+#else
             madvise(const_cast<u8 *>(_data) + page_floor(offset), len + (offset - page_floor(offset)), MADV_WILLNEED);
+#endif
         }
 
         void advise_sequential(size_t offset, size_t len) const {

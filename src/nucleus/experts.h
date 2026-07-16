@@ -72,8 +72,10 @@ namespace nucleus {
         void prefetch(u32 layer, const u32 *ids, u32 k) {
             for (u32 i = 0; i < k; ++i) {
                 const size_t idx = layer * _cfg.n_experts + ids[i];
+#if !defined(__APPLE__)
                 if (_resident[idx])
                     continue;
+#endif
                 const TensorEntry &t = *_entries[idx];
                 _file.map().prefetch(t.offset, t.nbytes);
                 _resident[idx] = 1;

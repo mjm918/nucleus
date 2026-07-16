@@ -177,17 +177,26 @@ namespace nucleus {
 
     Model::~Model() { _experts.save_usage(_usage_path); }
 
-    void Model::mv(const QView &w, const f32 *x, f32 *out) {
+    void Model::prepare_mv(const f32 *x, u32 n) {
+        if (!exact_mode())
+            quantize_act(x, (int) n, _actq.data(), _acts.data());
+    }
+
+    void Model::mv_prepared(const QView &w, const f32 *x, f32 *out) {
         if (exact_mode()) {
             matvec_exact(w, x, out, _pool);
             return;
         }
-        quantize_act(x, w.cols, _actq.data(), _acts.data());
         if (w.dtype == DType::Q8) {
             matvec_q8(w, _actq.data(), _acts.data(), out, _pool);
         } else {
             matvec_q4(w, _actq.data(), _acts.data(), out, _pool);
         }
+    }
+
+    void Model::mv(const QView &w, const f32 *x, f32 *out) {
+        prepare_mv(x, w.cols);
+        mv_prepared(w, x, out);
     }
 
     void Model::attention(const LayerWeights &lw, u32 layer, u32 pos, const f32 *x, f32 *out) {
@@ -197,10 +206,11 @@ namespace nucleus {
         const u32 n_rep = c.n_heads / kvh;
         const f32 *inv_freq = lw.full_attn ? _inv_freq_global.data() : _inv_freq_local.data();
 
-        mv(lw.attn_q, x, _qbuf.data());
-        mv(lw.attn_k, x, _kbuf.data());
+        prepare_mv(x, c.hidden);
+        mv_prepared(lw.attn_q, x, _qbuf.data());
+        mv_prepared(lw.attn_k, x, _kbuf.data());
         if (lw.has_v) {
-            mv(lw.attn_v, x, _vbuf.data());
+            mv_prepared(lw.attn_v, x, _vbuf.data());
         } else {
             // k == v weights: V is the raw K projection, before k_norm and RoPE.
             std::memcpy(_vbuf.data(), _kbuf.data(), (size_t) kvh * hd * sizeof(f32));
@@ -295,8 +305,9 @@ namespace nucleus {
         {
             prof::Timer _pt(prof::kDenseMlp);
             rmsnorm(_t1.data(), residual, lw.ln_preffw, c.hidden, c.rms_eps);
-            mv(lw.mlp_gate, _t1.data(), _ffn_a.data());
-            mv(lw.mlp_up, _t1.data(), _ffn_b.data());
+            prepare_mv(_t1.data(), c.hidden);
+            mv_prepared(lw.mlp_gate, _t1.data(), _ffn_a.data());
+            mv_prepared(lw.mlp_up, _t1.data(), _ffn_b.data());
             f32 *fa = _ffn_a.data();
             const f32 *fb = _ffn_b.data();
             _pool.parallel_for(c.ffn_dim, [&](i64 i0, i64 i1) {
