@@ -18,15 +18,16 @@
 #define NUCLEUS_SAMPLER_H
 
 #include <algorithm>
+#include <cmath>
 #include <random>
+#include <vector>
 
 #include "common.h"
 
 namespace nucleus {
     class Sampler {
-        public:
-        Sampler(f32 temp, i32 top_k, f32 top_p, u64 seed):
-        _temp(temp), _top_k(top_k), _top_p(top_p), _rng(seed) {};
+    public:
+        Sampler(f32 temp, i32 top_k, f32 top_p, u64 seed) : _temp(temp), _top_k(top_k), _top_p(top_p), _rng(seed) {};
 
         i32 sample(const f32 *logits, i32 vocab) {
             if (_temp <= 0.f) {
@@ -43,7 +44,7 @@ namespace nucleus {
             _candidates.clear();
             _candidates.reserve(k);
 
-            for (i32 i = 0; i < k; ++i) {
+            for (i32 i = 0; i < vocab; ++i) {
                 if (_candidates.size() < k) {
                     _candidates.emplace_back(logits[i], i);
                     if (_candidates.size() == k) {
@@ -68,18 +69,18 @@ namespace nucleus {
                 sum += _probs[i];
             }
 
-            for (auto &p : _probs) {
+            for (auto &p: _probs) {
                 p /= sum;
             }
 
             const size_t p = _probs.size();
-            size_t n = _probs.size();
+            size_t n = p;
             if (_top_p > 0.f && _top_p < 1.f) {
                 f32 c = 0.f;
-                for (i32 i = 0; i < p; ++i) {
+                for (size_t i = 0; i < p; ++i) {
                     c += _probs[i];
                     if (c >= _top_p) {
-                        n = n + 1;
+                        n = i + 1;
                         break;
                     }
                 }
@@ -93,7 +94,7 @@ namespace nucleus {
 
             const f32 r = dist(_rng);
             f32 cum = 0.f;
-            for (i32 i = 0; i < p; ++i) {
+            for (size_t i = 0; i < n; ++i) {
                 cum += _probs[i];
                 if (r <= cum) {
                     return _candidates[i].second;
@@ -101,6 +102,7 @@ namespace nucleus {
             }
             return _candidates[n - 1].second;
         }
+
     private:
         struct Gt {
             bool operator()(const std::pair<f32, i32> &x, const std::pair<f32, i32> &y) const {
@@ -115,6 +117,6 @@ namespace nucleus {
         std::vector<f32> _probs;
         Gt _gt;
     };
-}
+} // namespace nucleus
 
-#endif //NUCLEUS_SAMPLER_H
+#endif // NUCLEUS_SAMPLER_H
