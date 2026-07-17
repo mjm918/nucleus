@@ -46,7 +46,9 @@ if(BUILD_TESTING)
     endif()
 
     add_executable(nucleus_tests
+        src/nucleus/kernel.cpp
         tests/common_test.cpp
+        tests/kernel_test.cpp
         tests/mmap_test.cpp
         tests/nuc_file_test.cpp
         tests/expert_store_test.cpp
