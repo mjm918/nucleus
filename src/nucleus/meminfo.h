@@ -36,26 +36,29 @@ namespace nucleus {
         if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count) !=
             KERN_SUCCESS) {
             return 0;
-            }
+        }
         return info.resident_size;
 #else
-        std::FILE* f = std::fopen("/proc/self/statm", "r");
-        if (!f) return 0;
+        std::FILE *f = std::fopen("/proc/self/statm", "r");
+        if (!f)
+            return 0;
         unsigned long total = 0, resident = 0;
         const int n = std::fscanf(f, "%lu %lu", &total, &resident);
         std::fclose(f);
-        if (n != 2) return 0;
-        return (u64)resident * (u64)sysconf(_SC_PAGESIZE);
+        if (n != 2)
+            return 0;
+        return (u64) resident * (u64) sysconf(_SC_PAGESIZE);
 #endif
     }
 
     inline u64 peak_rss_bytes() {
         struct rusage ru{};
-        if (getrusage(RUSAGE_SELF, &ru) != 0) return 0;
+        if (getrusage(RUSAGE_SELF, &ru) != 0)
+            return 0;
 #if defined(__APPLE__)
         return static_cast<u64>(ru.ru_maxrss);
 #else
-        return (u64)ru.ru_maxrss * 1024;
+        return (u64) ru.ru_maxrss * 1024;
 #endif
     }
 
@@ -66,10 +69,11 @@ namespace nucleus {
 
     inline PageFaults page_faults() {
         struct rusage ru{};
-        if (getrusage(RUSAGE_SELF, &ru) != 0) return {0, 0};
+        if (getrusage(RUSAGE_SELF, &ru) != 0)
+            return {0, 0};
         return {static_cast<u64>(ru.ru_minflt), static_cast<u64>(ru.ru_majflt)};
     }
 
-}
+} // namespace nucleus
 
-#endif //NUCLEUS_MEMINFO_H
+#endif // NUCLEUS_MEMINFO_H

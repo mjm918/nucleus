@@ -34,5 +34,5 @@
 
 *.nuc
 *.nuc.*
-cmake-*
 
+cmake-*
